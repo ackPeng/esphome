@@ -1840,7 +1840,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
 #endif
-  resp.has_deep_sleep = true;
+  resp.has_deep_sleep = false;
 #ifdef ESPHOME_PROJECT_NAME
   resp.project_name = ESPHOME_PROJECT_NAME;
   resp.project_version = ESPHOME_PROJECT_VERSION;
