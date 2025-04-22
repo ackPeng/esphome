@@ -464,7 +464,7 @@ bool APIServer::is_connected() const { return !this->clients_.empty(); }
 void APIServer::on_shutdown() {
   for (auto &c : this->clients_) {
     while (false == c->send_disconnect_request(DisconnectRequest())){
-      ESP_LOGD("on my shut down","send_disconnect_request false retry!")
+      ESP_LOGD("on my shut down","send_disconnect_request false retry!");
       delay(500);
     }
     ESP_LOGD("on my shut down","send_disconnect_request ok!")
