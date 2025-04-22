@@ -470,7 +470,7 @@ void APIServer::on_shutdown() {
 
     ESP_LOGD("on my shut down","send_disconnect_request ok!");
   }
-  delay(1000);
+  delay(5000);
 }
 
 }  // namespace api
