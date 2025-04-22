@@ -465,12 +465,12 @@ void APIServer::on_shutdown() {
   for (auto &c : this->clients_) {
     while (false == c->send_disconnect_request(DisconnectRequest())){
       ESP_LOGD("on my shut down","send_disconnect_request false retry!");
-      delay(500);
+      vTaskDelay(500);
     }
 
     ESP_LOGD("on my shut down","send_disconnect_request ok!");
   }
-  delay(5000);
+  vTaskDelay(5000);
 }
 
 }  // namespace api
