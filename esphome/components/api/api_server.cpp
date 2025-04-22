@@ -467,7 +467,8 @@ void APIServer::on_shutdown() {
       ESP_LOGD("on my shut down","send_disconnect_request false retry!");
       delay(500);
     }
-    ESP_LOGD("on my shut down","send_disconnect_request ok!")
+
+    ESP_LOGD("on my shut down","send_disconnect_request ok!");
   }
   delay(1000);
 }
