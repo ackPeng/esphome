@@ -463,14 +463,9 @@ bool APIServer::is_connected() const { return !this->clients_.empty(); }
 
 void APIServer::on_shutdown() {
   for (auto &c : this->clients_) {
-    while (false == c->send_disconnect_request(DisconnectRequest())){
-      ESP_LOGD("on my shut down","send_disconnect_request false retry!");
-      vTaskDelay(50);
-    }
-
-    ESP_LOGD("on my shut down","send_disconnect_request ok!");
+    c->send_disconnect_request(DisconnectRequest());
   }
-  vTaskDelay(1000);
+  delay(1000);
 }
 
 }  // namespace api
