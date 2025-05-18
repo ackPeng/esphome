@@ -65,6 +65,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
   void set_acceleration_mode(RhtAccelerationMode mode) { acceleration_mode_ = mode; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { auto_cleaning_interval_ = auto_cleaning_interval; }
@@ -114,6 +115,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *voc_sensor_{nullptr};
+  // SEN63C and SEN66 only
+  sensor::Sensor *pressure_sensor_{nullptr};
   // SEN55 and SEN66 only
   sensor::Sensor *nox_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};

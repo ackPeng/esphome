@@ -143,6 +143,12 @@ void SEN5XComponent::setup() {
       } else if (this->nox_sensor_ && sen5x_type != SEN55 && sen5x_type != SEN66) {
         ESP_LOGE(TAG, "For NOx a SEN55 is required. You are using a <%s> sensor", this->product_name_.c_str());
         this->nox_sensor_ = nullptr;  // mark as not used
+      } else if (this->co2_sensor_ && sen5x_type != SEN66) {
+        ESP_LOGE(TAG, "For CO2 a SEN66 is required. You are using a <%s> sensor", this->product_name_.c_str());
+        this->co2_sensor_ = nullptr;  // mark as not used
+      } else if (this->pressure_sensor_ && sen5x_type != SEN66) {
+        ESP_LOGE(TAG, "For Pressure a SEN66 is required. You are using a <%s> sensor", this->product_name_.c_str());
+        this->pressure_sensor_ = nullptr;  // mark as not used
       }
 
       if (!this->get_register(CMD_GET_FIRMWARE_VERSION, this->firmware_version_, 20)) {
@@ -302,6 +308,7 @@ void SEN5XComponent::dump_config() {
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_); // SEN63C and SEN66 only
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "VOC", this->voc_sensor_);  // SEN54 and SEN55 only
@@ -412,6 +419,30 @@ void SEN5XComponent::update() {
       this->nox_sensor_->publish_state(nox);
     if (this->co2_sensor_ != nullptr)
       this->co2_sensor_->publish_state(co2);
+    this->status_clear_warning();
+  });
+
+  this->set_timeout(20, [this]() {
+  if (this->product_name_ == "SEN66") {
+    if (!this->write_command(SEN66_GET_AMBIENT_PRESSURE)) {
+      this->status_set_warning();
+      ESP_LOGD(TAG, "read pressure measurement error (%d)", this->last_error_);
+      return;
+      }
+    } 
+
+    uint16_t pressure_read_raw;
+    if (!this->read_data(pressure_read_raw)) {
+      ESP_LOGE(TAG, "Failed to read data ready status");
+      this->mark_failed();
+      return;
+    }
+
+    float pressure = pressure_read_raw;
+    if (pressure_read_raw == 0xFFFF)
+      pressure = NAN;
+    if (this->pressure_sensor_ != nullptr)
+    this->pressure_sensor_->publish_state(pressure);
     this->status_clear_warning();
   });
 }
