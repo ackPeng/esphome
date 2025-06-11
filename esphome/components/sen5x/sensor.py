@@ -4,8 +4,10 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CO2,
     CONF_HUMIDITY,
     CONF_ID,
+    CONF_MODEL,
     CONF_OFFSET,
     CONF_PM_1_0,
     CONF_PM_2_5,
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
+    CONF_VALUE,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
@@ -21,6 +24,7 @@ from esphome.const import (
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_TEMPERATURE,
     ICON_CHEMICAL_WEAPON,
+    ICON_MOLECULE_CO2,
     ICON_RADIATOR,
     ICON_THERMOMETER,
     ICON_WATER_PERCENT,
@@ -28,9 +32,8 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
-    CONF_CO2,
-    ICON_MOLECULE_CO2,
     UNIT_PARTS_PER_MILLION,
+    UNIT_PARTS_PER_BILLION,
     DEVICE_CLASS_CARBON_DIOXIDE,
 )
 
@@ -42,13 +45,20 @@ sen5x_ns = cg.esphome_ns.namespace("sen5x")
 SEN5XComponent = sen5x_ns.class_(
     "SEN5XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
+Sen5xModel = sen5x_ns.enum("Sen5xModel")
 RhtAccelerationMode = sen5x_ns.enum("RhtAccelerationMode")
 
+
 CONF_ACCELERATION_MODE = "acceleration_mode"
+CONF_ALTITUDE_COMPENSATION = "altitude_compensation"
+CONF_AMBIENT_PRESSURE_COMPENSATION = "ambient_pressure_compensation"
+CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE = "ambient_pressure_compensation_source"
 CONF_ALGORITHM_TUNING = "algorithm_tuning"
 CONF_AUTO_CLEANING_INTERVAL = "auto_cleaning_interval"
+CONF_AUTO_SELF_CALIBRATION = "auto_self_calibration"
 CONF_GAIN_FACTOR = "gain_factor"
 CONF_GATING_MAX_DURATION_MINUTES = "gating_max_duration_minutes"
+CONF_HCHO = "hcho"
 CONF_INDEX_OFFSET = "index_offset"
 CONF_LEARNING_TIME_GAIN_HOURS = "learning_time_gain_hours"
 CONF_LEARNING_TIME_OFFSET_HOURS = "learning_time_offset_hours"
@@ -58,10 +68,26 @@ CONF_STD_INITIAL = "std_initial"
 CONF_TIME_CONSTANT = "time_constant"
 CONF_VOC = "voc"
 CONF_VOC_BASELINE = "voc_baseline"
-
+ICON_MOLECULE = "mdi:molecule"
 
 # Actions
 StartFanAction = sen5x_ns.class_("StartFanAction", automation.Action)
+ActivateHeaterAction = sen5x_ns.class_("ActivateHeaterAction", automation.Action)
+PerformForcedCo2CalibrationAction = sen5x_ns.class_(
+    "PerformForcedCo2CalibrationAction", automation.Action
+)
+SetAmbientPressurehPa = sen5x_ns.class_("SetAmbientPressurehPa", automation.Action)
+
+SEN5X_MODELS = {
+    "SEN50": Sen5xModel.SEN50,
+    "SEN54": Sen5xModel.SEN54,
+    "SEN55": Sen5xModel.SEN55,
+    "SEN60": Sen5xModel.SEN60,
+    "SEN63C": Sen5xModel.SEN63C,
+    "SEN65": Sen5xModel.SEN65,
+    "SEN66": Sen5xModel.SEN66,
+    "SEN68": Sen5xModel.SEN68,
+}
 
 ACCELERATION_MODES = {
     "low": RhtAccelerationMode.LOW_ACCELERATION,
@@ -90,6 +116,19 @@ GAS_SENSOR = cv.Schema(
     }
 )
 
+CO2_SENSOR = cv.Schema(
+    {
+        cv.Optional(CONF_AUTO_SELF_CALIBRATION, default=True): cv.boolean,
+        cv.Optional(CONF_ALTITUDE_COMPENSATION, default="0m"): cv.All(
+            cv.float_with_unit("altitude", "(m|m a.s.l.|MAMSL|MASL)"),
+            cv.int_range(min=0, max=0xFFFF, max_included=False),
+        ),
+        cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE): cv.use_id(
+            sensor.Sensor
+        ),
+    }
+)
+
 
 def float_previously_pct(value):
     if isinstance(value, str) and "%" in value:
@@ -103,6 +142,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN5XComponent),
+            cv.Optional(CONF_MODEL): cv.enum(SEN5X_MODELS, upper=True),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
@@ -149,6 +189,12 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(CO2_SENSOR),
+            cv.Optional(CONF_HCHO): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PARTS_PER_BILLION,
+                icon=ICON_MOLECULE,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
@@ -192,11 +238,19 @@ SENSOR_MAP = {
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
     CONF_CO2: "set_co2_sensor",
+    CONF_HCHO: "set_hcho_sensor",
 }
 
 SETTING_MAP = {
+    CONF_MODEL: "set_model",
     CONF_AUTO_CLEANING_INTERVAL: "set_auto_cleaning_interval",
     CONF_ACCELERATION_MODE: "set_acceleration_mode",
+}
+
+CO2_SETTING_MAP = {
+    CONF_AUTO_SELF_CALIBRATION: "set_co2_auto_calibrate",
+    CONF_ALTITUDE_COMPENSATION: "set_co2_altitude_compensation",
+    CONF_AMBIENT_PRESSURE_COMPENSATION: "set_co2_ambient_pressure_compensation",
 }
 
 
@@ -245,6 +299,15 @@ async def to_code(config):
                 config[CONF_TEMPERATURE_COMPENSATION][CONF_TIME_CONSTANT],
             )
         )
+    if CONF_CO2 in config:
+        for key, funcName in CO2_SETTING_MAP.items():
+            if key in config[CONF_CO2]:
+                cg.add(getattr(var, funcName)(config[CONF_CO2][key]))
+            if CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE in config[CONF_CO2]:
+                sens = await cg.get_variable(
+                    config[CONF_CO2][CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE]
+                )
+                cg.add(var.set_ambient_pressure_source(sens))
 
 
 SEN5X_ACTION_SCHEMA = maybe_simple_id(
@@ -257,6 +320,56 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
 @automation.register_action(
     "sen5x.start_fan_autoclean", StartFanAction, SEN5X_ACTION_SCHEMA
 )
-async def sen54_fan_to_code(config, action_id, template_arg, args):
+async def sen5x_fan_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "sen5x.activate_heater", ActivateHeaterAction, SEN5X_ACTION_SCHEMA
+)
+async def sen5x_ah_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+SEN5X_CALIBRATE_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SEN5XComponent),
+        cv.Required(CONF_VALUE): cv.templatable(cv.positive_int),
+    }
+)
+
+
+@automation.register_action(
+    "sen5x.perform_forced_co2_calibration",
+    PerformForcedCo2CalibrationAction,
+    SEN5X_CALIBRATE_ACTION_SCHEMA,
+)
+async def sen5x_frcc_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template_))
+    return var
+
+
+SEN5X_PRESSURE_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SEN5XComponent),
+        cv.Required(CONF_VALUE): cv.templatable(cv.positive_int),
+    }
+)
+
+
+@automation.register_action(
+    "sen5x.set_ambient_pressure_hpa",
+    SetAmbientPressurehPa,
+    SEN5X_PRESSURE_ACTION_SCHEMA,
+)
+async def sen5x_saph_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template_))
+    return var

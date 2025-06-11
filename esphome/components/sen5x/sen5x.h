@@ -15,6 +15,7 @@ enum ERRORCODE {
   MEASUREMENT_INIT_FAILED,
   PRODUCT_NAME_FAILED,
   FIRMWARE_FAILED,
+  UNSUPPORTED_CONF,
   UNKNOWN
 };
 
@@ -29,7 +30,8 @@ struct Sen5xBaselines {
   int32_t state1;
 } PACKED;  // NOLINT
 
-enum RhtAccelerationMode : uint16_t { LOW_ACCELERATION = 0, MEDIUM_ACCELERATION = 1, HIGH_ACCELERATION = 2 };
+enum Sen5xType { SEN50, SEN54, SEN55, SEN60, SEN63C, SEN65, SEN66, SEN68, UNKNOWN_MODEL };
+enum RhtAccelerationMode : uint16_t { LOW_ACCELERATION = 0, MEDIUM_ACCELERATION = 1, HIGH_ACCELERATION = 2, UNKNOWN_ACCELERATION=100};
 
 struct GasTuning {
   uint16_t index_offset;
@@ -53,8 +55,6 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void dump_config() override;
   void update() override;
 
-  enum Sen5xType { SEN50, SEN54, SEN55, SEN66, UNKNOWN };
-
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0) { pm_1_0_sensor_ = pm_1_0; }
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { pm_2_5_sensor_ = pm_2_5; }
   void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { pm_4_0_sensor_ = pm_4_0; }
@@ -63,9 +63,11 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_voc_sensor(sensor::Sensor *voc_sensor) { voc_sensor_ = voc_sensor; }
   void set_nox_sensor(sensor::Sensor *nox_sensor) { nox_sensor_ = nox_sensor; }
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
+  void set_hcho_sensor(sensor::Sensor *hcho_sensor) { hcho_sensor_ = hcho_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_store_baseline(bool store_baseline) { store_baseline_ = store_baseline; }
+  void set_model(Sen5xType model) { model_ = model; }
   void set_acceleration_mode(RhtAccelerationMode mode) { acceleration_mode_ = mode; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { auto_cleaning_interval_ = auto_cleaning_interval; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
@@ -99,13 +101,27 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_comp.time_constant = time_constant;
     temperature_compensation_ = temp_comp;
   }
+  void set_co2_auto_calibrate(bool value) {co2_auto_calibrate_ = value; }
+  void set_co2_altitude_compensation(uint16_t altitude) { co2_altitude_compensation_ = altitude; }
+  void set_ambient_pressure_source(sensor::Sensor *pressure) { co2_ambient_pressure_source_ = pressure; }
   bool start_fan_cleaning();
+  bool activate_heater();
+  bool perform_forced_co2_calibration(uint16_t co2);
+  void set_ambient_pressure_compensation(float pressure_in_hpa);
 
  protected:
+  bool is_sen5x();
+  bool is_sen6x();
+  void internal_setup_(uint8_t state);
+  bool start_measurements_();
+  bool stop_measurements_();
+  std::string convert_to_string_(uint16_t array[], uint8_t length);
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_temperature_compensation_(const TemperatureCompensation &compensation);
+  bool update_co2_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
   ERRORCODE error_code_;
   bool initialized_{false};
+  bool running_{false};
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_4_0_sensor_{nullptr};
@@ -114,22 +130,30 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *voc_sensor_{nullptr};
+  sensor::Sensor *hcho_sensor_{nullptr};
   // SEN55 and SEN66 only
   sensor::Sensor *nox_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
 
   std::string product_name_;
-  uint8_t serial_number_[4];
-  uint16_t firmware_version_;
+  std::string serial_number_;
+  uint8_t firmware_major_{0xFF};
+  uint8_t firmware_minor_{0xFF};
   Sen5xBaselines voc_baselines_storage_;
   bool store_baseline_;
   uint32_t seconds_since_last_store_;
   ESPPreferenceObject pref_;
+  optional<Sen5xType> model_;
   optional<RhtAccelerationMode> acceleration_mode_;
   optional<uint32_t> auto_cleaning_interval_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
   optional<TemperatureCompensation> temperature_compensation_;
+  optional<bool> co2_auto_calibrate_;
+  optional<uint16_t> co2_altitude_compensation_;
+  sensor::Sensor *co2_ambient_pressure_source_{nullptr};
+
+  uint16_t co2_ambient_pressure_{0};
 };
 
 }  // namespace sen5x
